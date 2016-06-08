@@ -42,29 +42,56 @@ class CLI extends WP_CLI_Command {
 
         error_reporting(0);
 
-        $args = array(
-            'post_type'         => 'any',
-            'post_status'       => 'publish',
-            'posts_per_page'    => -1,
-            'fields'            => 'ids',
-            'orderby'           => 'ID',
-            'cache_results'     => false,
-        );
+        $posts_per_page = 100;
+        $page = 1;
 
-        $query = new WP_Query( $args );
-        $post_ids = $query->posts;
+        do {
+            $post_ids = get_posts( array(
+                'posts_per_page' => $posts_per_page,
+                'paged' => $page,
+                'post_type'         => 'any',
+                'post_status'       => 'publish',
+                'fields'            => 'ids',
+                'orderby'           => 'ID',
+                'cache_results'     => false,
+            ));
 
-        $indexer = new FacetWP_Indexer;
-        $indexer->is_overridden = true;
+            // Do stuff
 
-        $progress_bar = WP_CLI\Utils\make_progress_bar('Indexing', count($post_ids));
+            $progress_bar = WP_CLI\Utils\make_progress_bar('Indexing', count( $post_ids ));
 
-        foreach($post_ids as $post_id){
-            $progress_bar->tick();
-            $indexer->index($post_id);
-        }
+            $indexer = new FacetWP_Indexer;
+            $indexer->is_overridden = true;
 
-        $progress_bar->finish();
+            foreach( $post_ids as $post_id ){
+                $progress_bar->tick();
+                $indexer->index( $post_id );
+            }
+
+            $progress_bar->finish();
+
+            $page++;
+
+            // Free up memory
+            $this->stop_the_insanity();
+
+        } while ( count( $post_ids ) );
+    }
+
+    /*
+	 *  Clear all of the caches for memory management
+	 */
+    protected function stop_the_insanity() {
+        global $wpdb, $wp_object_cache;
+        $wpdb->queries = array(); // or define( 'WP_IMPORTING', true );
+        if ( !is_object( $wp_object_cache ) )
+            return;
+        $wp_object_cache->group_ops = array();
+        $wp_object_cache->stats = array();
+        $wp_object_cache->memcache_debug = array();
+        $wp_object_cache->cache = array();
+        if ( is_callable( $wp_object_cache, '__remoteset' ) )
+            $wp_object_cache->__remoteset(); // important
     }
 
 }
