@@ -1,5 +1,5 @@
 {
-    "name": "ll-custom/levellevel-facetwp-wp-cli",
+    "name": "level-level/facetwp-wp-cli",
     "type": "wordpress-muplugin",
     "require": {},
     "version": "1.0"
