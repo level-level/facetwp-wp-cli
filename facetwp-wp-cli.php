@@ -1,7 +1,7 @@
 <?php
 /*
  * Plugin Name: FacetWP index via WP-CLI
- * Version: 1.0
+ * Version: 1.1
  * Description: Run indexing of FacetWP via WP-CLI
  * Author: Level Level
  * Author URI: http://www.level-level.com
@@ -42,14 +42,20 @@ class CLI extends WP_CLI_Command {
 
         error_reporting(0);
 
+        $post_type = 'any';
+
+        if ( isset( $args[0] ) ) {
+            $post_type = $args[0];
+        }
+
         $posts_per_page = 100;
         $page = 1;
 
         do {
             $post_ids = get_posts( array(
-                'posts_per_page' => $posts_per_page,
-                'paged' => $page,
-                'post_type'         => 'any',
+                'posts_per_page'    => $posts_per_page,
+                'paged'             => $page,
+                'post_type'         => $post_type,
                 'post_status'       => 'publish',
                 'fields'            => 'ids',
                 'orderby'           => 'ID',
