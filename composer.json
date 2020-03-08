@@ -1,7 +1,7 @@
 {
     "name": "level-level/facetwp-wp-cli",
     "type": "wordpress-muplugin",
-    "description": "WordPress CLI tool, to force facetWP to reindex posts."
+    "description": "WordPress CLI tool, to force facetWP to reindex posts.",
     "license": "GPL-2.0-or-later",
     "require": {}
 }
