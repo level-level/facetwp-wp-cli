@@ -31,10 +31,13 @@ class CLI extends WP_CLI_Command {
      * Indexes all posts
      *
      * ## OPTIONS
+     * [--post-type=<name>]
+     * : post type, 'any' if not defined
      *
      * ## EXAMPLES
      *
      *     wp facet index
+     *     wp facet index --post-type=product
      *
      * @synopsis
      */
@@ -42,17 +45,15 @@ class CLI extends WP_CLI_Command {
 
         error_reporting(0);
 
-        $post_type = 'any';
-
-        if ( isset( $args[0] ) ) {
-            $post_type = $args[0];
-        }
+        if ( empty( $assoc_args['post-type'] ) )
+		$post_type = 'any';
+	else
+		$post_type = $assoc_args['post-type'];
 
         $posts_per_page = 100;
         $page = 1;
 
-        do {
-            $post_ids = get_posts( array(
+	$args = array(
                 'posts_per_page'    => $posts_per_page,
                 'paged'             => $page,
                 'post_type'         => $post_type,
@@ -60,28 +61,46 @@ class CLI extends WP_CLI_Command {
                 'fields'            => 'ids',
                 'orderby'           => 'ID',
                 'cache_results'     => false,
-            ));
+        );
 
-            // Do stuff
+	$total = 0;
 
-            $progress_bar = WP_CLI\Utils\make_progress_bar('Indexing', count( $post_ids ));
+        do {
+		$args['paged'] = $page;
+		$my_query = new WP_Query( $args );
 
-            $indexer = new FacetWP_Indexer;
-            $indexer->is_overridden = true;
+		if ($my_query->have_posts())
+		{
+			if ($page == 1)
+			{
+				$total = $my_query->found_posts;
+            			WP_CLI::line( 'Found '.$total.' posts of type "'.$post_type.'"' );
+				$progress_bar = WP_CLI\Utils\make_progress_bar('Indexing', $total );
+			}
 
-            foreach( $post_ids as $post_id ){
-                $progress_bar->tick();
-                $indexer->index( $post_id );
-            }
+			foreach ( $my_query->posts as $key => $post_id )
+			{
+            			//WP_CLI::line( $post_id );
+	               		$progress_bar->tick();
+				FWP()->indexer->index( $post_id );
+			}
 
-            $progress_bar->finish();
+	                // Free up memory
+        	        $this->stop_the_insanity();
 
-            $page++;
+	                $page++;
+		}
 
-            // Free up memory
-            $this->stop_the_insanity();
 
-        } while ( count( $post_ids ) );
+        } while ( $my_query->have_posts() );
+
+	if ($total > 0)
+	{
+		$progress_bar->finish();
+		WP_CLI::success( 'All posts indexed' );
+	} else {
+		WP_CLI::error( 'No posts of type "'.$post_type.'" found!' );
+	}
     }
 
     /*
@@ -101,6 +120,5 @@ class CLI extends WP_CLI_Command {
     }
 
 }
-
 
 WP_CLI::add_command( 'facet', __NAMESPACE__ . '\\CLI' );
