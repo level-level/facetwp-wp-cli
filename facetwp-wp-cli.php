@@ -22,7 +22,6 @@ if ( !defined ('WP_CLI') )
 
 use WP_CLI;
 use WP_CLI_Command;
-use FacetWP_Indexer;
 use WP_Query;
 
 class CLI extends WP_CLI_Command {
@@ -33,63 +32,73 @@ class CLI extends WP_CLI_Command {
      * ## OPTIONS
      * [--post-type=<name>]
      * : post type, 'any' if not defined
+     * 
+     * [--start-at-page=<number>]
+     * : pagenumber to start indexing, 1 if not defined
      *
      * ## EXAMPLES
      *
      *     wp facet index
      *     wp facet index --post-type=product
+     *     wp facet index --start-at-page=7
      *
      * @synopsis
      */
     function index( $args, $assoc_args ) {
+        if ( ! defined( 'WP_IMPORTING' ) ) {
+            define('WP_IMPORTING', true);
+        }
 
-        error_reporting(0);
+        if( ! function_exists('FWP')){
+            WP_CLI::error( 'FacetWP plugin is not activated.' );
+        }
 
-        if ( empty( $assoc_args['post-type'] ) )
-		$post_type = 'any';
-	else
-		$post_type = $assoc_args['post-type'];
+        wp_suspend_cache_addition( true );
 
-        $posts_per_page = 100;
+        $post_type = 'any';
+        if ( ! empty( $assoc_args['post-type'] ) ) {
+            $post_type = $assoc_args['post-type'];
+        }
+
         $page = 1;
+        if ( ! empty( $assoc_args['start-at-page'] ) ) {
+            $page = $assoc_args['start-at-page'];
+        }
+        $posts_per_page = 100;
 
-	$args = array(
-                'posts_per_page'    => $posts_per_page,
-                'paged'             => $page,
-                'post_type'         => $post_type,
-                'post_status'       => 'publish',
-                'fields'            => 'ids',
-                'orderby'           => 'ID',
-                'cache_results'     => false,
-        );
+        $args = array(
+                    'posts_per_page'    => $posts_per_page,
+                    'paged'             => $page,
+                    'post_type'         => $post_type,
+                    'post_status'       => 'publish',
+                    'fields'            => 'ids',
+                    'orderby'           => 'ID',
+                    'cache_results'     => false,
+            );
 
-	$total = 0;
-
+        $total = 0;
+        
+        $args['paged'] = $page;
+        $my_query = new WP_Query( $args );
+        
+        $total = $my_query->found_posts;
+        WP_CLI::line( 'Found '.$total.' posts of type "'.$post_type.'"' );
+        $progress_bar = WP_CLI\Utils\make_progress_bar('Indexing', $total, 1000 );
         do {
-		$args['paged'] = $page;
-		$my_query = new WP_Query( $args );
+            $args['paged'] = $page;
+            $my_query = new WP_Query( $args );
+            WP_CLI::line( 'Starting indexing of page ' . $page . '.' );
+            if ($my_query->have_posts())
+            {
+                foreach ( $my_query->posts as $post_id ) {
+                    $progress_bar->tick();
+                    FWP()->indexer->index( $post_id );
+                }
 
-		if ($my_query->have_posts())
-		{
-			if ($page == 1)
-			{
-				$total = $my_query->found_posts;
-            			WP_CLI::line( 'Found '.$total.' posts of type "'.$post_type.'"' );
-				$progress_bar = WP_CLI\Utils\make_progress_bar('Indexing', $total );
-			}
-
-			foreach ( $my_query->posts as $key => $post_id )
-			{
-            			//WP_CLI::line( $post_id );
-	               		$progress_bar->tick();
-				FWP()->indexer->index( $post_id );
-			}
-
-	                // Free up memory
-        	        $this->stop_the_insanity();
-
-	                $page++;
-		}
+                $this->stop_the_insanity();
+                WP_CLI::line( 'Finished indexing page ' . $page . '.' );
+                $page++;
+            }
 
 
         } while ( $my_query->have_posts() );
@@ -103,20 +112,23 @@ class CLI extends WP_CLI_Command {
 	}
     }
 
-    /*
+    /**
 	 *  Clear all of the caches for memory management
 	 */
     protected function stop_the_insanity() {
-        global $wpdb, $wp_object_cache;
-        $wpdb->queries = array(); // or define( 'WP_IMPORTING', true );
-        if ( !is_object( $wp_object_cache ) )
+        global $wpdb, $wp_object_cache, $wp_actions;
+        $wpdb->queries = array(); 
+        $wp_actions = array();
+        wp_cache_flush();
+        if ( !is_object( $wp_object_cache ) ){
             return;
+        }
         $wp_object_cache->group_ops = array();
         $wp_object_cache->stats = array();
         $wp_object_cache->memcache_debug = array();
         $wp_object_cache->cache = array();
         if ( is_callable( $wp_object_cache, '__remoteset' ) )
-            $wp_object_cache->__remoteset(); // important
+            $wp_object_cache->__remoteset();
     }
 
 }
