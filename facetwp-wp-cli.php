@@ -53,8 +53,6 @@ class CLI extends WP_CLI_Command {
 			WP_CLI::error( 'FacetWP plugin is not activated.' );
 		}
 
-		wp_suspend_cache_addition( true );
-
 		$post_type = 'any';
 		if ( ! empty( $assoc_args['post-type'] ) ) {
 			$post_type = $assoc_args['post-type'];
@@ -118,7 +116,6 @@ class CLI extends WP_CLI_Command {
 		global $wpdb, $wp_object_cache, $wp_actions;
 		$wpdb->queries = array(); 
 		$wp_actions = array();
-		wp_cache_flush();
 		if ( !is_object( $wp_object_cache ) ){
 			return;
 		}
